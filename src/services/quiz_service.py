@@ -135,6 +135,13 @@ class QuizService:
             
             if response:
                 quiz_data = json.loads(response)
+                
+                # source_content와 reference가 없으면 추가
+                if 'source_content' not in quiz_data:
+                    quiz_data['source_content'] = selected_content[:200] + "..."
+                if 'reference' not in quiz_data:
+                    quiz_data['reference'] = f"{textbook} {chapter}"
+                
                 quiz = QuizQuestion(**quiz_data)
                 emoji_logger.success(f"{quiz_index}번째 퀴즈 생성 완료")
                 return quiz
@@ -172,6 +179,13 @@ class QuizService:
             
             if response:
                 quiz_data = json.loads(response)
+                
+                # source_content와 reference가 없으면 추가
+                if 'source_content' not in quiz_data:
+                    quiz_data['source_content'] = selected_content[:200] + "..."
+                if 'reference' not in quiz_data:
+                    quiz_data['reference'] = f"{textbook} {chapter} {section}"
+                
                 quiz = QuizQuestion(**quiz_data)
                 emoji_logger.success(f"{quiz_index}번째 절별 퀴즈 생성 완료")
                 return quiz
@@ -192,18 +206,27 @@ class QuizService:
                         {"role": "user", "content": prompt}
                     ],
                     temperature=settings.TEMPERATURE,
-                    max_tokens=settings.MAX_TOKENS
+                    max_tokens=settings.MAX_TOKENS,
+                    response_format={"type": "json_object"}  # JSON 강제 모드
                 )
                 
                 content = response.choices[0].message.content.strip()
+                emoji_logger.debug(f"GPT 응답 길이: {len(content)}")
+                
+                # 응답이 비어있으면 로깅
+                if not content:
+                    emoji_logger.warning(f"GPT가 빈 응답을 반환했습니다 (시도 {attempt + 1})")
+                    continue
                 
                 # JSON 형식 검증
-                json.loads(content)  # JSON 파싱 테스트
+                parsed = json.loads(content)
+                emoji_logger.debug(f"JSON 파싱 성공: {len(str(parsed))}자")
                 
                 return content
                 
             except json.JSONDecodeError as e:
                 emoji_logger.warning(f"JSON 파싱 실패 (시도 {attempt + 1}/{max_retries}): {e}")
+                emoji_logger.debug(f"원본 응답: {content[:200]}...")  # 처음 200자만 표시
                 if attempt == max_retries - 1:
                     emoji_logger.error("최대 재시도 횟수 초과")
                     

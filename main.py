@@ -195,6 +195,28 @@ async def generate_quiz_section(request: QuizSectionRequest) -> QuizResponse:
         emoji_logger.error(f"절별 퀴즈 생성 실패: {e}")
         raise HTTPException(status_code=500, detail="절별 퀴즈 생성에 실패했습니다.")
 
+@app.post("/reset-database")
+async def reset_database():
+    """데이터베이스 재설정 및 재로딩"""
+    try:
+        # 데이터베이스 재설정
+        rag_service.reset_database()
+        
+        # 데이터 재로딩
+        await rag_service._load_textbook_data()
+        
+        # 새로운 통계 반환
+        stats = rag_service.get_database_stats()
+        
+        return {
+            "message": "데이터베이스가 성공적으로 재설정되었습니다.",
+            "database_status": stats
+        }
+        
+    except Exception as e:
+        emoji_logger.error(f"데이터베이스 재설정 실패: {e}")
+        raise HTTPException(status_code=500, detail="데이터베이스 재설정에 실패했습니다.")
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     """전역 예외 처리"""

@@ -60,6 +60,33 @@ class RAGService:
                 metadata={"description": "Korean Financial Textbooks"}
             )
     
+    def reset_database(self) -> None:
+        """데이터베이스 재설정"""
+        try:
+            emoji_logger.processing("데이터베이스를 재설정합니다...")
+            
+            # 기존 컬렉션 삭제
+            try:
+                self.chroma_client.delete_collection(settings.COLLECTION_NAME)
+                emoji_logger.success("기존 컬렉션 삭제 완료")
+            except:
+                pass
+            
+            # 새 컬렉션 생성
+            self.collection = self.chroma_client.create_collection(
+                name=settings.COLLECTION_NAME,
+                metadata={"description": "Korean Financial Textbooks"}
+            )
+            
+            # 통계 초기화
+            self.document_stats = {}
+            
+            emoji_logger.success("데이터베이스 재설정 완료")
+            
+        except Exception as e:
+            emoji_logger.error(f"데이터베이스 재설정 실패: {e}")
+            raise
+    
     def _load_embedding_model(self) -> None:
         """임베딩 모델 로드"""
         emoji_logger.ai("임베딩 모델 로딩 중...")
@@ -75,6 +102,10 @@ class RAGService:
             if current_count == 0:
                 emoji_logger.processing("데이터베이스가 비어있습니다. 데이터를 다시 로딩합니다...")
                 await self._load_textbook_data()
+            else:
+                # 기존 데이터가 있으면 통계 업데이트
+                emoji_logger.processing("기존 데이터베이스에서 통계를 업데이트합니다...")
+                self._update_document_stats()
             
         except Exception as e:
             emoji_logger.error(f"데이터 확인 중 오류: {e}")
@@ -286,12 +317,15 @@ class RAGService:
             stats = {}
             for metadata in results['metadatas']:
                 chapter_section = metadata.get('chapter_section', 'Unknown')
-                stats[chapter_section] = stats.get(chapter_section, 0) + 1
+                if chapter_section and chapter_section != 'Unknown':
+                    stats[chapter_section] = stats.get(chapter_section, 0) + 1
             
             self.document_stats = stats
+            emoji_logger.debug(f"문서 통계 업데이트 완료: {len(stats)}개 챕터")
             
         except Exception as e:
             emoji_logger.error(f"통계 업데이트 실패: {e}")
+            self.document_stats = {}
     
     def get_database_stats(self) -> Dict[str, Any]:
         """데이터베이스 통계 반환"""
